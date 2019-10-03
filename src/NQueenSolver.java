@@ -67,45 +67,44 @@ public class NQueenSolver {
         return attackingQs;
     }
 
-    //function simulated annealing algorithm
-    //100% with T = T - .0005, Ti = 25, e^(deltaE/T) > .90
+    //schedule for T
+    public static double schedule(double temperature, int t) {
+        return temperature - .0351*t;
+    }
+
+    // Function to generate a random successor of current state.
+    public static int [] randomSuccessor(int [] current) {
+        int [] next;
+        next = Arrays.copyOf(current,current.length);
+        next[new Random().nextInt(next.length)] = new Random().nextInt(next.length);
+        return next;
+    }
+
+    // Function simulated annealing.
+    // schedule(T) = T - (.0005)*(numberOfLoops), Ti = 25, e^(deltaE/T) > .90
     public static int [] simulatedAnnealing(int [] problem) {
 
-        //current = MakeNode(Initial-State[problem])
         int [] current = Arrays.copyOf(problem,problem.length);
-
-        //next node
         int [] next;
+        double T0 = 30; // initial T
+        int t = 0; // time
+        double probability = .000003;
+        double T; // T = schedule[t]
 
-        //function controlling probability of of downward steps
-        double temperature = 25;
-
-        //from 1 to infinity
         while(true) {
-
-            //T = schedule[t]
-            temperature = temperature - .0005;
-
-            //if T = 0 then return current
-            if (temperature <= 0) return current;
-
-            // next = randomSuccessorOfCurrent
-            next = Arrays.copyOf(current,current.length);
-            next[new Random().nextInt(next.length)] = new Random().nextInt(next.length);
-
-            //deltaE = Value[next] - Value[current]
-            int deltaE = attackingQueens(current) - attackingQueens(next);
-
-            //if deltaE > 0 then current = next
+            t += 1;
+            T = schedule(T0,t);
+            if (T <= 0) return current;
+            next = randomSuccessor(current);
+            int deltaE =  attackingQueens(current) - attackingQueens(next);
             if (deltaE > 0) current = next;
-
-            //else current = next only with probability e^(deltaE/T)
-            else if (Math.pow(Math.E, (deltaE / temperature)) > .90) current = next;
+            else if (Math.pow(Math.E, (deltaE / T)) <= probability)
+                current = next;
 
         }
     }
 
-    //helper function for genetic
+    // Helper function for genetic.
     public static int [] reproduce(int [] x, int [] y) {
         int [] child = new int [x.length];
         Random rand = new Random();
@@ -117,52 +116,54 @@ public class NQueenSolver {
         return child;
     }
 
+    // Helper function for genetic.
     //create population
-    public static PriorityQueue<Node> createPopulation(int popSize, int n) {
-        PriorityQueue<Node> population = new PriorityQueue<Node>(Node.nodeComparator);
+    public static ArrayList<Node> createPopulation(int popSize, int n) {
+        ArrayList<Node> population = new ArrayList<Node>();
         for(int i = 0; i < popSize; i++) {
             int [] problem = randomNQueenProblem(n);
             population.add(new Node(problem,attackingQueens(problem)));
         }
+        population.sort(Node.nodeComparator);
         return population;
     }
 
+    // Helper function for genetic.
+    // Mutates a state.
+    public static void mutate(int [] child) {
+        child = randomSuccessor(child);
+    }
+
     //function genetic algorithm
-    public static Node genetic(PriorityQueue<Node> population) {
+    public static Node genetic(ArrayList<Node> population) {
 
         Random rand = new Random();
-        int loopCount = 0;
+        int maxLoops = 8500;
+        int selectionQuality = (int)(population.size()*.35);
+        double probability = .12789;
+        if(population.get(0).getAttackingQs() == 0)
+            return population.get(0);
 
-        //repeat
         while(true) {
-
-            loopCount++;
-            PriorityQueue<Node> newPopulation = new PriorityQueue<Node>(Node.nodeComparator);
+            maxLoops--;
+            ArrayList<Node> newPopulation = new ArrayList<Node>();
 
             for (int i = 0; i < population.size(); i++) {
-
-                //selection
-                Node [] populationArray = population.toArray(new Node [population.size()]);
-                int [] x = populationArray[rand.nextInt(population.size())].getState();
-                int [] y = populationArray[rand.nextInt(population.size())].getState();
-
-                //crossover
-                int[] child = reproduce(x, y);
-
-                //mutation
-                if(rand.nextDouble() <= .95) child[rand.nextInt(child.length)] = rand.nextInt(child.length);
-
-                //add child to the new population
+                int randomTopIndividualX = rand.nextInt(selectionQuality);
+                int randomTopIndividualY = rand.nextInt(selectionQuality);
+                int [] x = population.get(randomTopIndividualX).getState();
+                int [] y = population.get(randomTopIndividualY).getState();
+                int [] child = reproduce(x, y);
+                if(rand.nextDouble() <= probability) mutate(child);
                 newPopulation.add(new Node(child, attackingQueens(child)));
             }
 
-            //population = new population
             population.clear();
             population.addAll(newPopulation);
+            population.sort(Node.nodeComparator);
 
-            //if solution is found or if iteration limit is reached
-            if(population.element().getAttackingQs() == 0 || loopCount == 1000000)
-                return population.remove();
+            if(population.get(0).getAttackingQs() == 0 || maxLoops == 0)
+                return population.get(0);
         }
 
     }
@@ -186,15 +187,17 @@ public class NQueenSolver {
     public static void main(String [] args) {
 
 
+
         Node best = null;
         for(int i = 0; i < 5; i++) {
-            best = genetic(createPopulation(10, 25));
+            best = genetic(createPopulation(200, 25));
             System.out.print(i + ": " + best.getAttackingQs() + " -> ");
             printState(best.getState());
             System.out.println();
+            //printBoard(best.getState());
         }
 
-        /*
+         /*
 
         int [] best;
         for(int i = 0; i < 5; i++) {
@@ -202,12 +205,10 @@ public class NQueenSolver {
             System.out.print(i + ": " + attackingQueens(best) + " -> ");
             printState(best);
             System.out.println();
-            printBoard(best);
+            //printBoard(best);
         }
 
-
-        */
-
+         */
 
     }
 }
