@@ -1,63 +1,24 @@
 
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
 import java.util.*;
+
 
 public class NQueenSolver {
 
-    //function to generate random n queen problems
+    // Function to generate random n queen problems.
     public static int [] randomNQueenProblem(int size) {
-
-        Integer [] integers = new Integer [size];
         int [] problem = new int [size];
-
-
-        for(int i = 0; i < size; i++)  integers[i] = i;
-
         Random rand  = new Random();
+
         for(int column = 0; column < problem.length; column++)
             problem[column] = rand.nextInt(size);
 
         return problem;
     }
 
-    //Node class for n queen problem states
-    public static class Node {
-        private int [] state;
-        private int attackingQs;
-        int size;
-
-        //constructors
-        public Node() {
-            this.state = null;
-            this.attackingQs = -1;
-            int size = 0;
-        }
-
-        public Node(int [] state) {
-            this.state = Arrays.copyOf(state, state.length);
-            this.size = state.length;
-        }
-
-        public Node(int [] state, int attackingQs) {
-            this.state = Arrays.copyOf(state, state.length);
-            this.attackingQs = attackingQs;
-            this.size = state.length;
-        }
-
-        public int [] getState() {return this.state;}
-        public int getAttackingQs() {return this.attackingQs;}
-        public int getSize() {return this.size;}
-
-        //custom comparator for the node class, compares by cost
-        public static final Comparator<Node> nodeComparator = new Comparator<Node>() {
-            @Override
-            public int compare(Node n1, Node n2) {
-                return n1.getAttackingQs() - n2.getAttackingQs();
-            }
-        };
-
-    }
-
-    //function to evaluate fitness of current state
+    // Function to evaluate fitness of current state.
     public static int attackingQueens(int [] state) {
         int attackingQs = 0;
         for(int i = 0; i < state.length-1; i++)
@@ -67,11 +28,13 @@ public class NQueenSolver {
         return attackingQs;
     }
 
-    //schedule for T
-    public static double schedule(double temperature, int t) {
-        return temperature - .0351*t;
+    // Helper function for simulated annealing.
+    // Schedule for T.
+    public static double schedule(double t, double T) {
+         return T - .00009*t;
     }
 
+    // Helper function for simulated annealing.
     // Function to generate a random successor of current state.
     public static int [] randomSuccessor(int [] current) {
         int [] next;
@@ -81,26 +44,23 @@ public class NQueenSolver {
     }
 
     // Function simulated annealing.
-    // schedule(T) = T - (.0005)*(numberOfLoops), Ti = 25, e^(deltaE/T) > .90
     public static int [] simulatedAnnealing(int [] problem) {
 
         int [] current = Arrays.copyOf(problem,problem.length);
         int [] next;
-        double T0 = 30; // initial T
-        int t = 0; // time
-        double probability = .000003;
-        double T; // T = schedule[t]
+        double t = 0; // time
+        double probability = .0005;
+        double T = 100000;// T = schedule[t]
 
         while(true) {
-            t += 1;
-            T = schedule(T0,t);
+            T = schedule(t,T);
+            t += .5;
             if (T <= 0) return current;
             next = randomSuccessor(current);
             int deltaE =  attackingQueens(current) - attackingQueens(next);
             if (deltaE > 0) current = next;
             else if (Math.pow(Math.E, (deltaE / T)) <= probability)
                 current = next;
-
         }
     }
 
@@ -117,7 +77,7 @@ public class NQueenSolver {
     }
 
     // Helper function for genetic.
-    //create population
+    // Creates random population of size popSize and sorts them by fitness.
     public static ArrayList<Node> createPopulation(int popSize, int n) {
         ArrayList<Node> population = new ArrayList<Node>();
         for(int i = 0; i < popSize; i++) {
@@ -134,26 +94,34 @@ public class NQueenSolver {
         child = randomSuccessor(child);
     }
 
-    //function genetic algorithm
+    // Function genetic algorithm.
     public static Node genetic(ArrayList<Node> population) {
 
         Random rand = new Random();
-        int maxLoops = 8500;
-        int selectionQuality = (int)(population.size()*.35);
-        double probability = .12789;
-        if(population.get(0).getAttackingQs() == 0)
+        int maxLoops = 60; // 60 max iterations
+        int selectionQuality = (int)(population.size()*.39); // top 39% selection
+        double probability = .0003; // .03% chance of mutation
+
+        if(population.get(0).getAttackingQs() == 0) {
+            population.get(0).setSearchCost(0);
             return population.get(0);
 
+        }
+
+        int cost = 0;
         while(true) {
+            cost++;
             maxLoops--;
             ArrayList<Node> newPopulation = new ArrayList<Node>();
 
             for (int i = 0; i < population.size(); i++) {
                 int randomTopIndividualX = rand.nextInt(selectionQuality);
                 int randomTopIndividualY = rand.nextInt(selectionQuality);
+
                 int [] x = population.get(randomTopIndividualX).getState();
                 int [] y = population.get(randomTopIndividualY).getState();
                 int [] child = reproduce(x, y);
+
                 if(rand.nextDouble() <= probability) mutate(child);
                 newPopulation.add(new Node(child, attackingQueens(child)));
             }
@@ -162,16 +130,20 @@ public class NQueenSolver {
             population.addAll(newPopulation);
             population.sort(Node.nodeComparator);
 
-            if(population.get(0).getAttackingQs() == 0 || maxLoops == 0)
+            if(population.get(0).getAttackingQs() == 0 || maxLoops == 0) {
+                population.get(0).setSearchCost(cost);
                 return population.get(0);
+            }
         }
 
     }
 
+    // Function to print a state.
     public static void printState(int [] state) {
         for(int row: state) System.out.print(row+" ");
     }
 
+    // Function to print a state of a board.
     public static void printBoard(int [] best) {
         String [][] board = new String[best.length][best.length];
         for(int i = 0; i < best.length; i++) for (int j = 0; j < best.length; j++) board[i][j] = " . ";
@@ -184,31 +156,81 @@ public class NQueenSolver {
 
     }
 
-    public static void main(String [] args) {
+    // Function to test algorithms.
+    public static void test() throws FileNotFoundException, UnsupportedEncodingException {
 
+        PrintWriter writer1 = new PrintWriter("GData.txt", "UTF-8");
+        PrintWriter writer2 = new PrintWriter("SAData.txt", "UTF-8");
+        int n = 25;
+        int tests = 600;
 
-
-        Node best = null;
-        for(int i = 0; i < 5; i++) {
-            best = genetic(createPopulation(200, 25));
-            System.out.print(i + ": " + best.getAttackingQs() + " -> ");
-            printState(best.getState());
-            System.out.println();
-            //printBoard(best.getState());
+        System.out.println("Testing G");
+        for(int i = 0; i < tests; i++) {
+            System.out.println(i);
+            Node bestG;
+            long start = System.currentTimeMillis();
+            bestG = genetic(createPopulation(9250, n)); // population size 9250
+            long end = System.currentTimeMillis();
+            // test# #ofAttackingQs runtime
+            writer1.println(i+" "+bestG.getAttackingQs()+" "+(end - start)+" "+bestG.getSearchCost());
         }
+        writer1.close();
 
-         /*
-
-        int [] best;
-        for(int i = 0; i < 5; i++) {
-            best = simulatedAnnealing(randomNQueenProblem(25));
-            System.out.print(i + ": " + attackingQueens(best) + " -> ");
-            printState(best);
-            System.out.println();
-            //printBoard(best);
+        System.out.println("Testing SA");
+        for(int i = 0; i < tests; i++) {
+            System.out.println(i);
+            int [] bestSA;
+            long start = System.currentTimeMillis();
+            bestSA = simulatedAnnealing(randomNQueenProblem(n));
+            long end = System.currentTimeMillis();
+            // test# #ofAttackingQs runtime
+            writer2.println(i+" "+attackingQueens(bestSA)+" "+(end - start));
         }
+        writer2.close();
+    }
 
-         */
+    public static void main(String [] args) throws FileNotFoundException, UnsupportedEncodingException {
+        int count1 = 0;
+        int timesExecutedSA = 0;
+        int count2 = 0;
+        int timesExecutedG = 0;
+        int n = 25;
+
+        System.out.println("Testing genetic...");
+        Node bestG = null;
+        long start = System.currentTimeMillis();
+        while(count1 < 3) {
+            bestG = genetic(createPopulation(9250, n)); // population size 9250
+            timesExecutedG += 1;
+            if(bestG.getAttackingQs() == 0){
+                count1 += 1;
+                System.out.print("Solution "+count1+": ");
+                printState(bestG.getState());
+                System.out.println();
+            }
+        }
+        long end = System.currentTimeMillis();
+        System.out.println("Runtime to find 3 solutions: "+(double)(end-start)/1000+" s");
+        System.out.println("Solution rate: "+(double)300/timesExecutedG+"%");
+        System.out.println();
+
+        System.out.println("Testing simulated annealing...");
+        int [] bestSA = null;
+        start = System.currentTimeMillis();
+        while(count2 < 3) {
+            bestSA = simulatedAnnealing(randomNQueenProblem(n));
+            timesExecutedSA += 1;
+            if (attackingQueens(bestSA) == 0) {
+                count2 += 1;
+                System.out.print("Solution "+count2+": ");
+                printState(bestSA);
+                System.out.println();
+            }
+        }
+        end = System.currentTimeMillis();
+        System.out.println("Runtime to find 3 solutions: "+(double)(end-start)/1000+" s");
+        System.out.println("Solution rate: "+(double)300/timesExecutedSA+"%");
+        System.out.println();
 
     }
 }
